@@ -22,7 +22,8 @@ The project demonstrates key **distributed system concepts**: service independen
 | **Order Service**   | Manages orders, tracks status, and publishes events     |
 | **Payment Service** | Processes payments and publishes confirmation events    |
 
-**Architecture Sketch link**:*https://drive.google.com/file/d/1TsfNNpvfdPcuw_0-iZNFmy29JnGv_7G2/view?usp=sharing*
+**Architecture Sketch** *[link](https://drive.google.com/file/d/1TsfNNpvfdPcuw_0-iZNFmy29JnGv_7G2/view?usp=sharing)*
+
 
 **Supporting Components:**
 
