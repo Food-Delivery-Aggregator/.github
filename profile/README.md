@@ -42,5 +42,10 @@ Node.js, Express, PostgreSQL, Redis, RabbitMQ/Kafka, Docker, JWT, Nginx/Express 
 
 ## Team
 
-Mistire Daniel (Team Lead), Miraf Debebe, Nasifay Chala, Natan Addis, Nathnael Keleme, Rediet Birhanu.
+* Miraf Debebe
+* Mistire Daniel (Team Lead)
+* Nasifay Chala
+* Natan Addis
+* Nathnael Keleme
+* Rediet Birhanu
 
