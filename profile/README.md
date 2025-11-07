@@ -42,10 +42,10 @@ Node.js, Express, PostgreSQL, Redis, RabbitMQ/Kafka, Docker, JWT, Nginx/Express 
 
 ## Team
 
-* Miraf Debebe
-* ***[Mistire Daniel (Team Lead)](https://github.com/mistire)***
-* Nasifay Chala
-* Natan Addis
-* ***[Nathnael Keleme](https://github.com/kelemnati)***
-* ***[Rediet Birhanu](https://github.com/rediuw)***
+* **Miraf Debebe**
+* **Mistire Daniel (Team Lead)**
+* **Nasifay Chala**
+* **Natan Addis**
+* **Nathnael Keleme**
+* **Rediet Birhanu**
 
