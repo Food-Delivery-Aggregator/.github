@@ -24,7 +24,9 @@ The project demonstrates key **distributed system concepts**: service independen
 | **Notification Service** | Consumes domain events and delivers system notifications |
 
 
-**Architecture Sketch**
+### Architecture Sketch
+
+
 <img width="783" height="690" alt="image" src="https://github.com/user-attachments/assets/0576f3d2-f96c-4cbc-897d-94ed833716da" />
 
 
