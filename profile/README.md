@@ -41,7 +41,7 @@ The project demonstrates key **distributed system concepts**: service independen
 
 ## Technologies
 
-Node.js, Express, PostgreSQL, Redis, RabbitMQ/Kafka, Docker, JWT, Nginx/Express Gateway, Git & GitHub.
+Nestjs, PostgreSQL, Redis, RabbitMQ, Docker, JWT, Nginx/Nestjs Gateway
 
 ---
 
