@@ -59,9 +59,6 @@ Nestjs, PostgreSQL, Redis, RabbitMQ, Docker, JWT, Nginx/Nestjs Gateway
 
 
 
-
-
-
 # Food Delivery Aggregator - Comprehensive Architecture Deep Dive
 
 This document provides an exhaustive technical analysis of the microservices architecture, covering service communication, authentication, real-time notifications, database design, security patterns, resilience strategies, and infrastructure.
@@ -115,7 +112,7 @@ The system uses a **hybrid communication model** combining synchronous HTTP requ
 ### 2.1 Synchronous Communication (HTTP via Nginx)
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph "Client"
         F[Next.js Frontend]
     end
@@ -182,17 +179,17 @@ location /socket.io/ {
 For decoupled, event-driven communication, services publish and consume messages through **RabbitMQ**.
 
 ```mermaid
-graph TD
+flowchart TD
     subgraph "Publishers"
-        AUTH_PUB["auth-service\n(Topic Exchange)"]
-        ORDER_PUB["order-service\n(Direct Queue)"]
-        PAY_PUB["payment-service\n(Direct Queue)"]
+        AUTH_PUB["auth-service - (Topic Exchange)"]
+        ORDER_PUB["order-service - (Direct Queue)"]
+        PAY_PUB["payment-service - (Direct Queue)"]
     end
 
     subgraph "RabbitMQ Broker"
-        EXCHANGE_AUTH["auth.events\n(topic exchange)"]
-        QUEUE_NOTIF["notification_queue\n(durable queue)"]
-        QUEUE_PAY_EVENTS["PAYMENT_EVENTS\n(durable queue)"]
+        EXCHANGE_AUTH["auth.events - (topic exchange)"]
+        QUEUE_NOTIF["notification_queue - (durable queue)"]
+        QUEUE_PAY_EVENTS["PAYMENT_EVENTS - (durable queue)"]
     end
 
     subgraph "Consumers"
@@ -241,16 +238,16 @@ Token validation is **decentralized**. Each service that needs authentication in
 sequenceDiagram
     participant Client
     participant Nginx
-    participant Service as Target Service
+    participant Service as "Target Service"
 
-    Client->>Nginx: GET /order/api/v1/orders<br/>Authorization: Bearer <token>
+    Client->>Nginx: "GET /order/api/v1/orders<br/>Authorization: Bearer [token]"
     Nginx->>Service: Proxies request with Authorization header
     
     Note right of Service: JwtAuthGuard activated
     Service->>Service: 1. Extract token from Authorization header
     Service->>Service: 2. Verify signature with JWT_SECRET
-    Service->>Service: 3. Check expiration (exp claim)
-    Service->>Service: 4. Decode payload { sub, email, role }
+    Service->>Service: "3. Check expiration (exp claim)"
+    Service->>Service: "4. Decode payload { sub, email, role }"
     
     alt Token Valid
         Service->>Client: 200 OK + data
@@ -305,19 +302,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 ```mermaid
 sequenceDiagram
     participant Frontend
-    participant AuthService as auth-service
-    participant Database as PostgreSQL (auth_db)
-    participant EmailService as Email (MailHog)
+    participant AuthService as "auth-service"
+    participant Database as "PostgreSQL (auth_db)"
+    participant EmailService as "Email (MailHog)"
     participant RabbitMQ
 
-    Frontend->>AuthService: POST /auth/signup { email, password, role }
+    Frontend->>AuthService: "POST /auth/signup { email, password, role }"
     AuthService->>AuthService: Hash password with Argon2
-    AuthService->>Database: Create User (emailVerified: false)
+    AuthService->>Database: "Create User (emailVerified: false)"
     AuthService->>AuthService: Generate UUID verification token
     AuthService->>Database: Store hashed token in Token table
     AuthService->>EmailService: Send verification email
     AuthService->>RabbitMQ: Publish "user.created" event
-    AuthService->>Frontend: { message: "Please verify your email" }
+    AuthService->>Frontend: "{ message: 'Please verify your email' }"
 ```
 
 ### 4.2 Email Verification Flow
@@ -326,11 +323,11 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant Frontend
-    participant AuthService as auth-service
-    participant Database as PostgreSQL
+    participant AuthService as "auth-service"
+    participant Database as "PostgreSQL"
 
-    User->>Frontend: Clicks verification link (/verify-email?token=xxx&email=xxx)
-    Frontend->>AuthService: POST /auth/verify-email { token, email }
+    User->>Frontend: "Clicks verification link (/verify-email?token=xxx&email=xxx)"
+    Frontend->>AuthService: "POST /auth/verify-email { token, email }"
     AuthService->>Database: Find user by email
     AuthService->>Database: Find all EMAIL_VERIFY tokens for user
     AuthService->>AuthService: Verify token hash with Argon2
@@ -339,7 +336,7 @@ sequenceDiagram
         AuthService->>Database: Update user.emailVerified = true
         AuthService->>Database: Delete all EMAIL_VERIFY tokens
         AuthService->>RabbitMQ: Publish "user.email.verified" event
-        AuthService->>Frontend: { message: "Email verified" }
+        AuthService->>Frontend: "{ message: 'Email verified' }"
     else Token Invalid/Expired
         AuthService->>Frontend: 403 Forbidden
     end
@@ -350,18 +347,18 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Frontend
-    participant AuthService as auth-service
-    participant Database as PostgreSQL
+    participant AuthService as "auth-service"
+    participant Database as "PostgreSQL"
 
-    Frontend->>AuthService: POST /auth/signin { email, password }
+    Frontend->>AuthService: "POST /auth/signin { email, password }"
     AuthService->>Database: Find user by email
     AuthService->>AuthService: Verify password with Argon2
     
     alt Password Correct AND Email Verified
-        AuthService->>AuthService: Sign access_token (15m TTL)
-        AuthService->>AuthService: Sign refresh_token (7d TTL)
+        AuthService->>AuthService: "Sign access_token (15m TTL)"
+        AuthService->>AuthService: "Sign refresh_token (7d TTL)"
         AuthService->>Database: Store hashed refresh_token
-        AuthService->>Frontend: { access_token, refresh_token, user }
+        AuthService->>Frontend: "{ access_token, refresh_token, user }"
         Frontend->>Frontend: Store in localStorage
     else Invalid
         AuthService->>Frontend: 403 Forbidden
@@ -374,17 +371,17 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant Frontend
-    participant AuthService as auth-service
-    participant EmailService as Email
+    participant AuthService as "auth-service"
+    participant EmailService as "Email"
 
     User->>Frontend: Clicks "Forgot Password"
-    Frontend->>AuthService: POST /auth/forgot-password { email }
-    AuthService->>AuthService: Generate UUID reset token (15min TTL)
+    Frontend->>AuthService: "POST /auth/forgot-password { email }"
+    AuthService->>AuthService: "Generate UUID reset token (15min TTL)"
     AuthService->>Database: Store hashed token
     AuthService->>EmailService: Send reset email
 
-    User->>Frontend: Clicks reset link, enters new password
-    Frontend->>AuthService: POST /auth/reset-password { token, newPassword }
+    User->>Frontend: "Clicks reset link, enters new password"
+    Frontend->>AuthService: "POST /auth/reset-password { token, newPassword }"
     AuthService->>AuthService: Verify token hash
     AuthService->>AuthService: Hash new password with Argon2
     AuthService->>Database: Update user.password
@@ -591,23 +588,23 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
 ```mermaid
 sequenceDiagram
-    participant Customer as Customer (Frontend)
-    participant OrderService as order-service
+    participant Customer as "Customer (Frontend)"
+    participant OrderService as "order-service"
     participant RabbitMQ
-    participant NotifService as notification-service
-    participant WebSocket as Socket.io Server
-    participant RestaurantOwner as Restaurant Owner (Frontend)
+    participant NotifService as "notification-service"
+    participant WebSocket as "Socket.io Server"
+    participant RestaurantOwner as "Restaurant Owner (Frontend)"
 
     Customer->>OrderService: POST /order/api/v1/orders/create
     OrderService->>OrderService: Create order in DB
-    OrderService->>RabbitMQ: sendToQueue("notification_queue", ORDER_CREATED)
-    OrderService->>Customer: { orderId, status: PENDING }
+    OrderService->>RabbitMQ: "sendToQueue('notification_queue', ORDER_CREATED)"
+    OrderService->>Customer: "{ orderId, status: PENDING }"
 
-    RabbitMQ-->>NotifService: @EventPattern('ORDER_CREATED')
+    RabbitMQ-->>NotifService: "@EventPattern('ORDER_CREATED')"
     NotifService->>NotifService: Save notification to DB
-    NotifService->>WebSocket: gateway.sendNotificationToUser(ownerId, ...)
-    WebSocket-->>RestaurantOwner: emit('notification', { eventType: 'ORDER_CREATED', ... })
-    RestaurantOwner->>RestaurantOwner: Toast: "New order received!"
+    NotifService->>WebSocket: "gateway.sendNotificationToUser(ownerId, ...)"
+    WebSocket-->>RestaurantOwner: "emit('notification', { eventType: 'ORDER_CREATED', ... })"
+    RestaurantOwner->>RestaurantOwner: "Toast: 'New order received!'"
 ```
 
 **Key Files:**
@@ -705,9 +702,9 @@ For a class project or startup MVP, RabbitMQ's simplicity is invaluable. You get
 RabbitMQ's exchange types enable sophisticated routing:
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph "Topic Exchange Example"
-        PUB["auth-service"] --> EX["auth.events\n(topic exchange)"]
+        PUB["auth-service"] --> EX["auth.events - (topic exchange)"]
         EX -->|"user.created"| Q1["notification_queue"]
         EX -->|"user.role.updated"| Q2["admin_audit_queue"]
         EX -->|"user.*"| Q3["analytics_queue"]
@@ -784,25 +781,25 @@ Kafka would be the right choice if you needed:
 Each microservice owns its own database, ensuring loose coupling.
 
 ```mermaid
-graph TB
+flowchart TB
     subgraph "auth-service"
         AUTH_SVC["auth-service"]
-        AUTH_DB[("auth_db\nPostgreSQL\n:5439")]
+        AUTH_DB[("auth_db - PostgreSQL - :5439")]
     end
 
     subgraph "order-service"
         ORDER_SVC["order-service"]
-        ORDER_DB[("order_db\nPostgreSQL\n:5440")]
+        ORDER_DB[("order_db - PostgreSQL - :5440")]
     end
 
     subgraph "payment-service"
         PAY_SVC["payment-service"]
-        PAY_DB[("payment_db\nPostgreSQL\n:5435")]
+        PAY_DB[("payment_db - PostgreSQL - :5435")]
     end
 
     subgraph "notification-service"
         NOTIF_SVC["notification-service"]
-        NOTIF_DB[("notify_db\nPostgreSQL\n:5441")]
+        NOTIF_DB[("notify_db - PostgreSQL - :5441")]
     end
 
     AUTH_SVC --> AUTH_DB
@@ -1242,10 +1239,10 @@ const paymentBreaker = createBreaker(callExternalPaymentGateway);
 #### Why Auth-Service Doesn't Need It
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph "auth-service dependencies"
         AUTH[auth-service]
-        DB[(PostgreSQL)]
+        DB[("PostgreSQL")]
         SMTP[MailHog/Gmail]
         RMQ[RabbitMQ]
     end
@@ -1292,9 +1289,9 @@ The notification-service only:
 - Consumes from **RabbitMQ** (broker handles reliability)
 
 ```mermaid
-graph LR
+flowchart LR
     NOTIF[notification-service]
-    DB[(PostgreSQL)]
+    DB[("PostgreSQL")]
     WS[Socket.io Server]
     RMQ[RabbitMQ]
     
@@ -1455,39 +1452,39 @@ services:
 ### 12.2 Network Topology
 
 ```mermaid
-graph TB
+flowchart TB
     subgraph "External Access"
         BROWSER["Browser"]
     end
 
     subgraph "Docker Network: food-delivery-net"
         subgraph "Frontend"
-            FE["frontend\n:3000"]
+            FE["frontend - :3000"]
         end
 
         subgraph "API Layer"
-            NGINX["api-nginx\n:8080"]
-            GW["api-gateway\n:4001"]
+            NGINX["api-nginx - :8080"]
+            GW["api-gateway - :4001"]
         end
 
         subgraph "Services"
-            AUTH["auth-service\n:4000"]
-            ORDER["order-service\n:4002"]
-            PAY["payment-service\n:4003"]
-            NOTIF["notification-service\n:4004"]
+            AUTH["auth-service - :4000"]
+            ORDER["order-service - :4002"]
+            PAY["payment-service - :4003"]
+            NOTIF["notification-service - :4004"]
         end
 
         subgraph "Databases"
-            AUTH_DB["auth-db\n:5439"]
-            ORDER_DB["order-db\n:5440"]
-            PAY_DB["payment-db\n:5435"]
-            NOTIF_DB["db-notif\n:5441"]
+            AUTH_DB["auth-db - :5439"]
+            ORDER_DB["order-db - :5440"]
+            PAY_DB["payment-db - :5435"]
+            NOTIF_DB["db-notif - :5441"]
         end
 
         subgraph "Infrastructure"
-            RMQ["rabbitmq\n:5672"]
-            REDIS["redis\n:6379"]
-            MAIL["mailhog\n:8025"]
+            RMQ["rabbitmq - :5672"]
+            REDIS["redis - :6379"]
+            MAIL["mailhog - :8025"]
         end
     end
 
@@ -1525,22 +1522,22 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant FE as Frontend
-    participant AUTH as auth-service
-    participant DB as auth_db
-    participant RMQ as RabbitMQ
-    participant NOTIF as notification-service
-    participant WS as Socket.io
+    participant FE as "Frontend"
+    participant AUTH as "auth-service"
+    participant DB as "auth_db"
+    participant RMQ as "RabbitMQ"
+    participant NOTIF as "notification-service"
+    participant WS as "Socket.io"
 
     FE->>AUTH: POST /auth/signup
     AUTH->>DB: Insert User
-    AUTH->>RMQ: Publish to auth.events (user.created)
-    AUTH->>FE: { message: "Verify email" }
+    AUTH->>RMQ: "Publish to auth.events (user.created)"
+    AUTH->>FE: "{ message: 'Verify email' }"
 
-    RMQ-->>NOTIF: @EventPattern('user.created')
+    RMQ-->>NOTIF: "@EventPattern('user.created')"
     NOTIF->>NOTIF: Save notification to notify_db
-    NOTIF->>WS: sendNotificationToUser(userId)
-    WS-->>FE: emit('notification', { "Welcome!" })
+    NOTIF->>WS: "sendNotificationToUser(userId)"
+    WS-->>FE: "emit('notification', { 'Welcome!' })"
 ```
 
 ### 13.2 Order → Payment → Real-time Update
@@ -1548,17 +1545,17 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Customer
-    participant ORDER as order-service
-    participant PAY as payment-service
-    participant RMQ as RabbitMQ
-    participant NOTIF as notification-service
-    participant WS as Socket.io
+    participant ORDER as "order-service"
+    participant PAY as "payment-service"
+    participant RMQ as "RabbitMQ"
+    participant NOTIF as "notification-service"
+    participant WS as "Socket.io"
     participant Restaurant
 
     Customer->>ORDER: Create Order
-    ORDER->>ORDER: Save order (isPaid: false)
-    ORDER->>RMQ: notification_queue (ORDER_CREATED)
-    ORDER->>Customer: { orderId, paymentUrl }
+    ORDER->>ORDER: "Save order (isPaid: false)"
+    ORDER->>RMQ: "notification_queue (ORDER_CREATED)"
+    ORDER->>Customer: "{ orderId, paymentUrl }"
 
     RMQ-->>NOTIF: ORDER_CREATED
     NOTIF->>WS: Notify restaurant owner
@@ -1566,11 +1563,11 @@ sequenceDiagram
 
     Customer->>PAY: Pay for order
     PAY->>PAY: Process payment
-    PAY->>RMQ: PAYMENT_EVENTS (PAYMENT_SUCCESS)
+    PAY->>RMQ: "PAYMENT_EVENTS (PAYMENT_SUCCESS)"
 
     RMQ-->>ORDER: PAYMENT_SUCCESS
-    ORDER->>ORDER: Update order (isPaid: true, status: PREPARING)
-    ORDER->>RMQ: notification_queue (ORDER_STATUS_UPDATED)
+    ORDER->>ORDER: "Update order (isPaid: true, status: PREPARING)"
+    ORDER->>RMQ: "notification_queue (ORDER_STATUS_UPDATED)"
 
     RMQ-->>NOTIF: ORDER_STATUS_UPDATED
     NOTIF->>WS: Notify customer + restaurant
