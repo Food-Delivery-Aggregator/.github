@@ -1,4 +1,4 @@
-# Food Delivery Aggregator System
+# AASTU-Food Delivery Aggregator System-G2
 
 **Distributed Systems Mini Project – Addis Ababa Science and Technology University (AASTU)**
 
@@ -22,6 +22,7 @@ The project demonstrates key **distributed system concepts**: service independen
 | **Order Service**   | Manages orders, tracks status, and publishes events     |
 | **Payment Service** | Processes payments and publishes confirmation events    |
 | **Notification Service** | Consumes domain events and delivers system notifications |
+| **Frontend Service** | Shows a working UI that shows all the process |
 
 
 ### Architecture Sketch
