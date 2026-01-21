@@ -1,69 +1,67 @@
-# AASTU-Food Delivery Aggregator System-G2
+<div align="center">
 
-**Distributed Systems Mini Project – Addis Ababa Science and Technology University (AASTU)**
+# AASTU Food Delivery Aggregator System
 
----
+### Distributed Systems Mini Project – Group 2
 
-## Overview
+**Addis Ababa Science and Technology University (AASTU)**
 
-The **Food Delivery Aggregator System** is a **microservices-based platform** connecting **customers, restaurants, and delivery agents**. It supports food ordering, payments, and efficient delivery tracking using **Nestjs**, and an **event-driven architecture** with **RabbitMQ**.
+[![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=flat&logo=nestjs&logoColor=white)](https://nestjs.com/)
+[![Express](https://img.shields.io/badge/Express-000000?style=flat&logo=express&logoColor=white)](https://expressjs.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=flat&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 
-The project demonstrates key **distributed system concepts**: service independence, asynchronous communication, eventual consistency, and scalability.
-
----
-
-## Architecture
-
-**Core Microservices:**
-
-| Service             | Purpose                                                 |
-| ------------------- | ------------------------------------------------------- |
-| **Auth Service**    | User registration, login, and role-based access control |
-| **Order Service**   | Manages orders, tracks status, and publishes events     |
-| **Payment Service** | Processes payments and publishes confirmation events    |
-| **Notification Service** | Consumes domain events and delivers system notifications |
-| **Frontend Service** | Shows a working UI that shows all the process |
-
-
-### Architecture Sketch
-
-
-<img width="783" height="690" alt="image" src="https://github.com/user-attachments/assets/0576f3d2-f96c-4cbc-897d-94ed833716da" />
-
-
-**Supporting Components:**
-
-* **API Gateway:** Routes requests to services
-* **Message Broker (Rabbit-MQ):** Handles asynchronous communication
-* **Databases:** Each service has its own PostgreSQL database
-* **Redis:** Caching frequently accessed data
+</div>
 
 ---
 
-## Technologies
+## Project Overview
 
-Nestjs, PostgreSQL, Redis, RabbitMQ, Docker, JWT, Nginx/Nestjs Gateway
+The **Food Delivery Aggregator System** is a **microservices-based platform** that connects **customers**, **restaurants**, and **delivery agents** in a seamless food ordering and delivery experience.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Food Ordering** | Customers browse restaurants, add items to cart, and place orders |
+| **Payment Processing** | Integrated with Stripe and Chapa payment gateways |
+| **Delivery Tracking** | Real-time order status updates via WebSocket |
+| **Notifications** | Event-driven notifications using RabbitMQ |
+| **Authentication** | JWT-based auth with email verification |
+| **Admin Dashboard** | Platform metrics and user management |
+
+### Distributed Systems Concepts Demonstrated
+
+- **Service Independence**: Each microservice is independently deployable
+- **Asynchronous Communication**: Event-driven architecture with RabbitMQ
+- **Eventual Consistency**: Services synchronize state through events
+- **Scalability**: Kubernetes-ready with horizontal scaling support
+- **Fault Tolerance**: Circuit breakers and graceful degradation
 
 ---
 
-## Team
+## Team Members
 
-* **Miraf Debebe**
-* **Mistire Daniel (Team Lead)**
-* **Nasifay Chala**
-* **Natan Addis**
-* **Nathnael Keleme**
-* **Rediet Birhanu**
+| Name | Role |
+|------|------|
+| Miraf Debebe | Developer |
+| Mistire Daniel | Developer (**Team Lead**) |
+| Nasifay Chala | Developer |
+| Natan Addis | Developer |
+| Nathnael Keleme | Developer |
+| Rediet Birhanu | Developer |
 
+---
 
-
-
-
-# Food Delivery Aggregator - Comprehensive Architecture Deep Dive
+# Architecture Deep Dive
 
 This document provides an exhaustive technical analysis of the microservices architecture, covering service communication, authentication, real-time notifications, database design, security patterns, resilience strategies, and infrastructure.
 
 ---
+
 
 ## Table of Contents
 
@@ -73,12 +71,12 @@ This document provides an exhaustive technical analysis of the microservices arc
 4.  [Complete Authentication Flow](#4-complete-authentication-flow)
 5.  [How the Notification Service Handles Events](#5-how-the-notification-service-handles-events)
 6.  [Why and How Socket.io is Used](#6-why-and-how-socketio-is-used)
-7.  [Why RabbitMQ Queues from Auth-Service Appear Empty](#7-why-rabbitmq-queues-from-auth-service-appear-empty)
+7.  [RabbitMQ Architecture & Configuration](#7-rabbitmq-architecture--configuration)
 8.  [Database Architecture (Database-per-Service)](#8-database-architecture-database-per-service)
 9.  [Security Patterns](#9-security-patterns)
-10. [Resilience Patterns](#10-resilience-patterns)
-11. [Frontend API Client with Transparent Token Refresh](#11-frontend-api-client-with-transparent-token-refresh)
-12. [Infrastructure Overview](#12-infrastructure-overview)
+10. [Resilience Patterns & Fault Tolerance](#10-resilience-patterns--fault-tolerance)
+11. [Frontend Architecture](#11-frontend-architecture)
+12. [Infrastructure: Docker & Kubernetes](#12-infrastructure-docker--kubernetes)
 13. [Complete Message Flow Diagrams](#13-complete-message-flow-diagrams)
 
 ---
@@ -102,6 +100,7 @@ The Food Delivery Aggregator is a microservices-based platform consisting of:
 -   **Redis**: Caching/session storage (used by payment-service)
 -   **PostgreSQL**: 4 separate database instances (one per service)
 -   **MailHog**: Development SMTP server for email testing
+-   **Kubernetes (Minikube)**: Orchestration platform
 
 ---
 
@@ -135,6 +134,12 @@ flowchart LR
     N -->|"/notification/*"| NOTIFY
     N -->|"/socket.io/*"| NOTIFY
 ```
+
+**Diagram Explanation:**
+1.  **Single Entry Point**: The user's browser (via the Next.js frontend) sends all API requests to one address: `http://localhost:8080` (Nginx).
+2.  **Path-Based Routing**: Nginx acts like a traffic cop. It looks at the URL path (e.g., `/auth/login`) and decides which internal service should handle the request.
+3.  **Internal Forwarding**: Nginx forwards the request to the correct backend service. The frontend never talks directly to `auth-service:4000`; it only knows about Nginx.
+4.  **Why This Matters**: This decouples the frontend from backend service locations. If `auth-service` moves to a different port or IP, only Nginx config changes—not the frontend code.
 
 **How Nginx Routes Requests:**
 
@@ -172,8 +177,6 @@ location /socket.io/ {
 
 **Key File:** [nginx.conf](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/api-gateway/nginx/nginx.conf)
 
----
-
 ### 2.2 Asynchronous Communication (RabbitMQ)
 
 For decoupled, event-driven communication, services publish and consume messages through **RabbitMQ**.
@@ -195,10 +198,12 @@ flowchart TD
     subgraph "Consumers"
         NOTIFY_CON["notification-service"]
         ORDER_CON["order-service"]
+        AUDIT_CON["(Future Audit Service)"]
     end
 
     AUTH_PUB -->|"user.created, user.updated"| EXCHANGE_AUTH
     EXCHANGE_AUTH -->|"bind: user.#"| QUEUE_NOTIF
+    EXCHANGE_AUTH -.->|"bind: user.#"| AUDIT_CON
 
     ORDER_PUB -->|"ORDER_CREATED, DELIVERY_STATUS_UPDATED"| QUEUE_NOTIF
     PAY_PUB -->|"PAYMENT_SUCCESS, PAYMENT_FAILED"| QUEUE_PAY_EVENTS
@@ -206,6 +211,14 @@ flowchart TD
     QUEUE_NOTIF --> NOTIFY_CON
     QUEUE_PAY_EVENTS --> ORDER_CON
 ```
+
+**Diagram Explanation:**
+1.  **Publishers (Left)**: Services like `auth-service` and `order-service` publish events when something important happens (e.g., a new user registers, an order is created).
+2.  **RabbitMQ Broker (Center)**: RabbitMQ receives these events. It uses different patterns:
+    *   **Topic Exchange** (`auth.events`): Acts like a mail sorting office. It routes messages based on patterns (e.g., `user.#` matches `user.created`, `user.updated`).
+    *   **Direct Queue** (`notification_queue`): A simple mailbox. Messages go directly into the queue.
+3.  **Consumers (Right)**: `notification-service` listens to the queue. When a message arrives, it processes it (e.g., sends an email, pushes a WebSocket notification).
+4.  **Why This Matters**: Services are **decoupled**. The `auth-service` does not know or care that `notification-service` exists—it just publishes events. If notification-service is down, messages wait in the queue.
 
 **Two Messaging Patterns:**
 
@@ -255,6 +268,13 @@ sequenceDiagram
         Service->>Client: 401 Unauthorized
     end
 ```
+
+**Diagram Explanation:**
+1.  **Request with Token**: The client sends an API request (e.g., `GET /order/api/v1/orders`) with a JWT token in the `Authorization` header.
+2.  **Proxy Pass**: Nginx simply forwards the request and headers to the target service (`order-service`).
+3.  **Token Validation**: The **JwtAuthGuard** inside `order-service` activates. It extracts the token, verifies its signature using the shared `JWT_SECRET`, checks if it is expired, and decodes the user information.
+4.  **Decision**: If the token is valid, the request proceeds and returns data. If the token is invalid or expired, a `401 Unauthorized` error is returned.
+5.  **Key Insight**: Token validation is **decentralized**—each service validates tokens independently using the same shared secret. There is no central auth gateway that all requests pass through.
 
 ### 3.1 JWT Strategy Implementation
 
@@ -317,6 +337,15 @@ sequenceDiagram
     AuthService->>Frontend: "{ message: 'Please verify your email' }"
 ```
 
+**Diagram Explanation:**
+1.  **User Submits Form**: The user fills out the registration form and clicks Sign Up.
+2.  **Password Hashing**: The backend hashes the password using Argon2 (so it is never stored in plain text).
+3.  **User Created**: A new User record is saved to the database with `emailVerified: false`.
+4.  **Token Generation**: A random verification token (UUID) is generated, hashed, and stored in the Token table.
+5.  **Email Sent**: The system sends an email to the user containing a verification link with the token.
+6.  **Event Published**: The `user.created` event is published to RabbitMQ so other services (like analytics or welcome notifications) can react.
+7.  **User Informed**: The frontend shows a message asking the user to check their email.
+
 ### 4.2 Email Verification Flow
 
 ```mermaid
@@ -342,6 +371,16 @@ sequenceDiagram
     end
 ```
 
+**Diagram Explanation:**
+1.  **User Clicks Link**: The user clicks the verification link in their email (e.g., `/verify-email?token=abc&email=user@example.com`).
+2.  **Token Lookup**: The backend finds the user by email and retrieves all `EMAIL_VERIFY` tokens for that user.
+3.  **Token Verification**: The backend uses Argon2 to compare the provided token against the stored hashes.
+4.  **If Valid**:
+    *   The user emailVerified field is set to `true`.
+    *   All verification tokens for that user are deleted (to prevent reuse).
+    *   A `user.email.verified` event is published to RabbitMQ.
+5.  **If Invalid/Expired**: A 403 Forbidden error is returned.
+
 ### 4.3 Login Flow with Token Generation
 
 ```mermaid
@@ -364,6 +403,17 @@ sequenceDiagram
         AuthService->>Frontend: 403 Forbidden
     end
 ```
+
+**Diagram Explanation:**
+1.  **User Submits Credentials**: The user enters their email and password and clicks Login.
+2.  **Password Verification**: The backend looks up the user by email and uses Argon2 to verify the password.
+3.  **Pre-conditions**: The password must match AND the email must be verified for login to succeed.
+4.  **Token Generation**:
+    *   An **access_token** (15-minute lifespan) is signed for short-term authentication.
+    *   A **refresh_token** (7-day lifespan) is signed for getting new access tokens without re-entering credentials.
+    *   The hashed refresh token is stored in the database.
+5.  **Frontend Storage**: The frontend stores both tokens in `localStorage` for subsequent API requests.
+6.  **If Invalid**: A 403 Forbidden error is returned.
 
 ### 4.4 Password Reset Flow
 
@@ -388,6 +438,15 @@ sequenceDiagram
     AuthService->>Database: Delete all PASSWORD_RESET tokens
     AuthService->>RabbitMQ: Publish "user.password.changed" event
 ```
+
+**Diagram Explanation:**
+1.  **User Requests Reset**: User clicks Forgot Password and enters their email.
+2.  **Token Generation**: The backend generates a UUID reset token with a 15-minute TTL.
+3.  **Email Sent**: The reset link is emailed to the user.
+4.  **User Resets Password**: User clicks the link, enters a new password.
+5.  **Validation**: The backend verifies the token hash and hashes the new password.
+6.  **Cleanup**: All PASSWORD_RESET tokens for that user are deleted.
+7.  **Event Published**: A `user.password.changed` event is published (useful for security alerts).
 
 **Key File:** [auth.service.ts](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/auth-service/src/auth/auth.service.ts)
 
@@ -613,7 +672,7 @@ sequenceDiagram
 
 ---
 
-## 7. Why RabbitMQ Queues from Auth-Service Appear Empty
+## 7. RabbitMQ Architecture & Configuration
 
 This is a common point of confusion. Understanding the difference between **Topic Exchanges** and **Direct Queues** is key.
 
@@ -711,6 +770,15 @@ flowchart LR
     end
 ```
 
+**Diagram Explanation:**
+1.  **Publisher**: The `auth-service` publishes various user events (like `user.created`, `user.role.updated`) to the `auth.events` topic exchange.
+2.  **Exchange Routing**: The topic exchange routes messages based on pattern matching:
+    *   `user.created` matches the `notification_queue` (bound with `user.#` pattern).
+    *   `user.role.updated` matches the `admin_audit_queue` (for security audits).
+    *   `user.*` matches the `analytics_queue` (for all user events).
+3.  **Multiple Consumers**: The same message can be delivered to multiple queues if the patterns match—a powerful fan-out capability.
+4.  **Why This Matters**: New services can subscribe to existing events without modifying the publisher.
+
 **Kafka doesn't have this.** In Kafka, you'd need separate topics or consumer-side filtering.
 
 #### 3. Request-Reply Pattern (RPC)
@@ -807,6 +875,15 @@ flowchart TB
     PAY_SVC --> PAY_DB
     NOTIF_SVC --> NOTIF_DB
 ```
+
+**Diagram Explanation:**
+1.  **Database-per-Service Pattern**: Each microservice has its own dedicated PostgreSQL database. This ensures:
+    *   **Loose Coupling**: Services can evolve their schemas independently.
+    *   **Fault Isolation**: A database issue in `payment-service` does not affect `auth-service`.
+    *   **Technology Freedom**: Each service could use a different database type if needed.
+2.  **Ports**: Each database runs on a different port (5439, 5440, etc.) in Docker/K8s.
+3.  **No Cross-Database Joins**: Services CANNOT directly query other services databases. They must communicate via APIs or events.
+4.  **Trade-off**: This pattern increases operational complexity (4 databases to manage) but provides better scalability and resilience.
 
 ### 8.1 Entity Relationship Diagrams
 
@@ -909,20 +986,6 @@ erDiagram
     ORDER ||--o| REVIEW : has
 
 ```
-OrderStatus:
-- PENDING
-- PREPARING
-- READY
-- COMPLETED
-- CANCELLED
-
-DeliveryStatus:
-- PENDING
-- PICKED_UP
-- ON_THE_WAY
-- DELIVERED
-
-
 
 #### 8.1.3 Payment Database ER Diagram
 
@@ -1016,7 +1079,7 @@ model Token {
 -   **Cascade delete**: Deleting a user deletes all their tokens
 -   **Role enum**: Type-safe role management
 
-### 8.2 Order Database Schema
+### 8.3 Order Database Schema
 
 ```prisma
 enum OrderStatus { PENDING, PREPARING, READY, COMPLETED, CANCELLED }
@@ -1055,7 +1118,7 @@ model Coupon {
 }
 ```
 
-### 8.3 Payment Database Schema
+### 8.4 Payment Database Schema
 
 ```prisma
 model Payment {
@@ -1080,7 +1143,7 @@ model Transaction {
 }
 ```
 
-### 8.4 Notification Database Schema (TypeORM)
+### 8.5 Notification Database Schema (TypeORM)
 
 ```typescript
 @Entity('notifications')
@@ -1177,7 +1240,7 @@ for (const storedToken of tokens) {
 
 ---
 
-## 10. Resilience Patterns
+## 10. Resilience Patterns & Fault Tolerance
 
 ### 10.1 Circuit Breaker (order-service)
 
@@ -1214,123 +1277,22 @@ stateDiagram-v2
     HalfOpen --> Open : failure
 ```
 
-### 10.2 Why Opossum is Only in Order-Service (Not Other Services)
+**Diagram Explanation:**
+1.  **Closed State (Normal)**: The circuit breaker starts closed—requests flow through normally. It monitors the failure rate.
+2.  **Open State (Protecting)**: If 50% of requests fail, the circuit opens. ALL subsequent requests immediately fail (without even trying the external service). This protects the system from cascading failures.
+3.  **Half-Open State (Testing)**: After 30 seconds, the circuit moves to half-open. It allows ONE test request through:
+    *   If it succeeds, the circuit closes again (back to normal).
+    *   If it fails, the circuit reopens (back to protecting).
+4.  **Why This Matters**: Without a circuit breaker, if an external payment gateway is down, your entire order service would hang waiting for timeouts. With a circuit breaker, requests fail fast, and users see an error immediately instead of a frozen page.
 
-> [!IMPORTANT]
-> This is a **deliberate architectural decision**, not an oversight.
-
-#### The Key Question: Which services make external/unreliable calls?
+### 10.2 Why Opossum is Only in Order-Service
 
 | Service              | External Dependencies                      | Needs Circuit Breaker? |
 |----------------------|--------------------------------------------|------------------------|
 | **order-service**    | Payment gateway (simulated)             | **Yes**                |
-| **order-service**    | RabbitMQ (for notifications)            | Handled differently    |
 | **auth-service**     | Only local DB + RabbitMQ                | No                     |
-| **payment-service**  | Stripe/Chapa APIs                       | Should have, but...    |
+| **payment-service**  | Stripe/Chapa APIs                       | Recommended for Prod   |
 | **notification-service** | Only local DB + Socket.io          | No                     |
-
-#### Why Order-Service Has It
-
-In `order-service`, there's a **simulated external payment gateway call**:
-
-```javascript
-// order-service/src/core/services/order.service.js
-
-// Simulated external payment gateway call
-const callExternalPaymentGateway = async (orderData) => {
-  console.log(`Calling external payment gateway for Order ${orderData.id}...`);
-  // In production: axios call to Stripe/PayPal
-  return { success: true, transactionId: `TXN_${...}` };
-};
-
-const paymentBreaker = createBreaker(callExternalPaymentGateway);
-```
-
-**Why this needs protection:**
-- External payment APIs can be slow, timeout, or rate-limit you
-- If the payment gateway is down, you don't want to keep retrying and exhausting resources
-- The circuit breaker "fails fast" after repeated failures
-
-#### Why Auth-Service Doesn't Need It
-
-```mermaid
-flowchart LR
-    subgraph "auth-service dependencies"
-        AUTH[auth-service]
-        DB[("PostgreSQL")]
-        SMTP[MailHog/Gmail]
-        RMQ[RabbitMQ]
-    end
-    
-    AUTH -->|"Prisma ORM"| DB
-    AUTH -->|"nodemailer"| SMTP
-    AUTH -->|"amqplib"| RMQ
-```
-
-| Dependency   | Reliability     | How It's Handled                           |
-|--------------|-----------------|---------------------------------------------|
-| PostgreSQL   | Very high       | Connection pooling + Prisma retry logic    |
-| MailHog      | Local container | Graceful failure (user still registered)   |
-| RabbitMQ     | High            | Retry loop + graceful degradation (see 10.3)|
-
-Auth operations are **fast and local**. There's no third-party API that could cause cascading failures.
-
-#### Why Payment-Service Doesn't Have It (But Probably Should)
-
-The `payment-service` calls **real external APIs** (Stripe, Chapa), which are prime candidates for circuit breakers:
-
-```javascript
-// payment-service/src/services/stripeService.js
-const stripe = new Stripe(config.STRIPE_SECRET_KEY);
-
-const createPaymentIntent = async (amount, currency, metadata) => {
-  return stripe.paymentIntents.create({ amount, currency, metadata });
-};
-```
-
-**Why it's currently missing:**
-1. **Stripe SDK has built-in retry logic** - Stripe's official library handles transient failures
-2. **Webhook-based architecture** - Payment results come via webhooks, not synchronous calls
-3. **Simplicity for MVP** - Adding opossum everywhere adds complexity
-
-> [!TIP]
-> **Recommendation**: For production, add a circuit breaker around Stripe/Chapa calls to prevent cascade failures during payment gateway outages.
-
-#### Why Notification-Service Doesn't Need It
-
-The notification-service only:
-- Writes to its **local PostgreSQL**
-- Pushes to **Socket.io** (in-process, no external call)
-- Consumes from **RabbitMQ** (broker handles reliability)
-
-```mermaid
-flowchart LR
-    NOTIF[notification-service]
-    DB[("PostgreSQL")]
-    WS[Socket.io Server]
-    RMQ[RabbitMQ]
-    
-    RMQ -->|"consumes"| NOTIF
-    NOTIF -->|"writes"| DB
-    NOTIF -->|"pushes"| WS
-```
-
-There are **no external HTTP calls** to protect.
-
-#### Summary: When to Use Circuit Breakers
-
-```mermaid
-flowchart TD
-    A[Does your service call an external API?] -->|Yes| B[Is the API unreliable/slow?]
-    A -->|No| C[No circuit breaker needed]
-    B -->|Yes| D[Add circuit breaker]
-    B -->|No| E[Consider retry logic instead]
-    
-    D --> F[Examples: Payment gateways, SMS APIs, ML services]
-    C --> G[Examples: Local DB, in-process calls, RabbitMQ]
-```
-
----
 
 ### 10.3 RabbitMQ Connection Retry
 
@@ -1380,9 +1342,12 @@ async publish(routingKey: string, message: any): Promise<boolean> {
 | **Retry with Backoff** | RabbitMQ connection in auth     | Handle transient failures during startup   |
 | **Graceful Degradation**| RabbitMQ publish in auth       | Continue core operations if optional features fail |
 | **Timeout**            | opossum 3s timeout              | Prevent hanging on slow external calls     |
-| **Bulkhead** *(not implemented)* | -                     | Isolate failures to prevent cascade        |
 
-## 11. Frontend API Client with Transparent Token Refresh
+---
+
+## 11. Frontend Architecture
+
+### 11.1 Frontend API Client with Transparent Token Refresh
 
 The frontend uses a custom `ApiClient` class that automatically refreshes expired access tokens:
 
@@ -1433,38 +1398,88 @@ async fetch<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Pr
 
 ---
 
-## 12. Infrastructure Overview
+## 12. Infrastructure: Docker & Kubernetes
 
-### 12.1 Docker Compose Services
+### 12.1 Docker vs. Kubernetes: An Architecture Comparison
 
-```yaml
-services:
-  # Infrastructure
-  rabbitmq:     # :5672 (AMQP), :15672 (Management UI)
-  redis:        # :6379 (used by payment-service)
-  mailhog:      # :1025 (SMTP), :8025 (Web UI)
+We evolved the system from a simple Docker Compose setup to a robust Kubernetes cluster.
 
-  # Databases
-  auth-db:      # PostgreSQL :5439
-  order-db:     # PostgreSQL :5440
-  payment-db:   # PostgreSQL :5435
-  db-notif:     # PostgreSQL :5441
+| Feature | Docker Compose (Old) | Kubernetes (New) | why K8s Wins |
+| :--- | :--- | :--- | :--- |
+| **Orchestration** | Single-host only. | Multi-host cluster. | **Scale**: Can run on 1000s of servers. |
+| **Load Balancing** | Static Nginx container. | **Ingress Controller**. Native, dynamic load balancing (Layer 7). | **Automation**: Automatically discovers new services. |
+| **Recovery** | Basic restart. | **Self-Healing**. K8s actively monitors health and kills/replaces "sick" pods. | **Reliability**: Proactive health management. |
+| **Scaling** | Manual. | **Autoscaling (HPA)**. Can auto-scale based on CPU/RAM usage. | **Efficiency**: Uses resources only when needed. |
+| **Networking** | Internal Docker network. | **Service Discovery**. Stable ClusterIPs and DNS. | **Stability**: Pods can move; IPs stay stable. |
 
-  # Microservices
-  auth-service:         # :4000
-  order-service:        # :4002
-  payment-service:      # :4003
-  notification-service: # :4004
+### 12.2 Kubernetes Architecture Deep Dive
 
-  # API Layer
-  api-gateway:  # :4001 (Swagger aggregation)
-  api-nginx:    # :8080 (Reverse proxy)
-
-  # Frontend
-  frontend:     # :3000
+```mermaid
+graph TD
+    subgraph "K8s Cluster (Minikube Node)"
+        Ingress[("Ingress Controller\n(Load Balancer)")]
+        
+        subgraph "Namespaces: default"
+            SVC_AUTH[Service: auth-service]
+            POD_AUTH[Pod: auth-service]
+            
+            SVC_ORDER[Service: order-service]
+            POD_ORDER[Pod: order-service]
+            
+            SVC_PAY[Service: payment-service]
+            POD_PAY[Pod: payment-service]
+            
+            SVC_DB[Service: auth-db, order-db...]
+            POD_DB[StatefulSet: auth-db-0...]
+        end
+    end
+    
+    Client --> Ingress
+    Ingress --> SVC_AUTH
+    Ingress --> SVC_ORDER
+    Ingress --> SVC_PAY
+    SVC_AUTH --> SVC_DB
 ```
 
-### 12.2 Network Topology
+**Diagram Explanation:**
+1.  **Cluster Boundary**: The large box represents the Kubernetes cluster (Minikube in development). Everything inside runs on the cluster.
+2.  **Ingress Controller**: This is the front door of the cluster. It is the only component exposed to the outside world. It receives all incoming HTTP traffic.
+3.  **Services**: Each microservice has a Kubernetes `Service` (e.g., `SVC_AUTH`). A Service provides a stable internal IP address and DNS name that does not change even if the underlying Pods restart.
+4.  **Pods**: These are the actual running containers (e.g., `POD_AUTH`). If a Pod crashes, Kubernetes automatically creates a new one.
+5.  **StatefulSets**: Databases use StatefulSets (instead of Deployments) because they need stable network identities (`auth-db-0`) and persistent storage.
+6.  **Traffic Flow**: External client to Ingress to Service to Pod. The client never talks directly to Pods.
+
+**Core Components & Their Role**
+
+1.  **Ingress (`shared/ingress.yaml`)**:
+    *   Acts as the unified entry point (Layer 7 Load Balancer).
+    *   Terminates endpoints and routes traffic based on URL paths (`/auth`, `/order`, etc.).
+
+2.  **Deployments (`apps/*.yaml`)**:
+    *   Manage stateless microservices (`auth`, `order`, `payment`, `notification`, `frontend`).
+    *   Handle **Rolling Updates** (zero-downtime deployments).
+
+3.  **StatefulSets (`db/databases.yaml`)**:
+    *   Manage stateful applications (PostgreSQL databases, RabbitMQ, Redis).
+    *   Provide stable network identities (`auth-db-0`) and stable persistent storage.
+
+4.  **Services (ClusterIP)**:
+    *   Provide stable internal IP addresses and DNS names (e.g., `auth-db`, `rabbitmq`).
+
+5.  **ConfigMaps & Secrets**:
+    *   **ConfigMap**: Stores non-sensitive configuration.
+    *   **Secret**: Stores sensitive data (DB passwords, keys) encoded in Base64.
+
+### 12.3 Kubernetes Fault Tolerance
+
+*   **Self-Healing**: If a container crashes, Kubelet restarts it.
+*   **Health Probes**:
+    *   **Liveness**: "Is app broken?" -> Restart.
+    *   **Readiness**: "Is app initializing?" -> Stop traffic.
+*   **Rolling Updates**: K8s spins up new versions and waits for them to be ready before killing old ones.
+*   **Persistent Volume Claims (PVC)**: Ensures database data survives pod restarts.
+
+### 12.4 Docker Compose Network Topology (Local Dev)
 
 ```mermaid
 flowchart TB
@@ -1472,11 +1487,7 @@ flowchart TB
         BROWSER["Browser"]
     end
 
-    subgraph "Docker Network: food-delivery-net"
-        subgraph "Frontend"
-            FE["frontend - :3000"]
-        end
-
+    subgraph "Docker Network"
         subgraph "API Layer"
             NGINX["api-nginx - :8080"]
             GW["api-gateway - :4001"]
@@ -1489,45 +1500,26 @@ flowchart TB
             NOTIF["notification-service - :4004"]
         end
 
-        subgraph "Databases"
-            AUTH_DB["auth-db - :5439"]
-            ORDER_DB["order-db - :5440"]
-            PAY_DB["payment-db - :5435"]
-            NOTIF_DB["db-notif - :5441"]
-        end
-
         subgraph "Infrastructure"
-            RMQ["rabbitmq - :5672"]
-            REDIS["redis - :6379"]
-            MAIL["mailhog - :8025"]
+            RMQ["rabbitmq"]
+            REDIS["redis"]
         end
     end
 
-    BROWSER -->|":3000"| FE
-    BROWSER -->|":8080"| NGINX
-    FE -->|"API calls"| NGINX
-
+    BROWSER --> NGINX
     NGINX --> AUTH
     NGINX --> ORDER
     NGINX --> PAY
     NGINX --> NOTIF
-
-    AUTH --> AUTH_DB
     AUTH --> RMQ
-    AUTH --> MAIL
-
-    ORDER --> ORDER_DB
-    ORDER --> RMQ
-
-    PAY --> PAY_DB
-    PAY --> REDIS
-    PAY --> RMQ
-
-    NOTIF --> NOTIF_DB
-    NOTIF --> RMQ
 ```
 
-**Key File:** [docker-compose.yml](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/infrastructure/docker-compose.yml)
+**Diagram Explanation:**
+1.  **External Access**: Users access the application through their browser.
+2.  **API Layer**: The browser connects to `api-nginx` on port 8080. Nginx acts as a reverse proxy, routing requests to the correct backend service.
+3.  **Services**: Each microservice runs on its own port inside the Docker network. They can communicate with each other via Docker internal DNS (e.g., `auth-service:4000`).
+4.  **Infrastructure**: Supporting services like RabbitMQ (message broker) and Redis (caching) are also part of the Docker network. Services connect to them using their container names (e.g., `rabbitmq:5672`).
+5.  **Key Insight**: In Docker Compose, all services share a single network (`food-delivery-net`). This is simpler than Kubernetes but less scalable.
 
 ---
 
@@ -1554,6 +1546,16 @@ sequenceDiagram
     NOTIF->>WS: "sendNotificationToUser(userId)"
     WS-->>FE: "emit('notification', { 'Welcome!' })"
 ```
+
+**Diagram Explanation:**
+1.  **User Signs Up**: The frontend sends a `POST /auth/signup` request to the auth-service.
+2.  **User Saved**: The auth-service inserts the new user into `auth_db`.
+3.  **Event Published**: The auth-service publishes a `user.created` event to RabbitMQ topic exchange.
+4.  **Frontend Response**: The frontend receives a message to verify the email.
+5.  **Notification Service Receives Event**: The notification-service (listening with `@EventPattern('user.created')`) picks up the event from the `notification_queue`.
+6.  **Notification Saved**: A Welcome notification is saved to `notify_db`.
+7.  **Real-time Push**: If the user browser is connected via Socket.io, the notification is pushed instantly.
+8.  **User Sees Welcome**: The frontend displays a welcome toast/notification.
 
 ### 13.2 Order → Payment → Real-time Update
 
@@ -1590,7 +1592,583 @@ sequenceDiagram
     WS-->>Restaurant: "Order paid, start cooking!"
 ```
 
+**Diagram Explanation:**
+This diagram shows the complete lifecycle of an order, from creation to payment to real-time updates:
+
+1.  **Order Creation**:
+    *   Customer creates an order then `order-service` saves it with `isPaid: false`.
+    *   `order-service` publishes `ORDER_CREATED` to RabbitMQ.
+    *   Restaurant owner receives a real-time New order! notification via Socket.io.
+
+2.  **Payment Processing**:
+    *   Customer pays via the `payment-service` (which talks to Stripe/Chapa).
+    *   `payment-service` publishes `PAYMENT_SUCCESS` to RabbitMQ.
+
+3.  **Order Update**:
+    *   `order-service` receives `PAYMENT_SUCCESS` and updates the order: `isPaid: true`, `status: PREPARING`.
+    *   `order-service` publishes `ORDER_STATUS_UPDATED` to RabbitMQ.
+
+4.  **Real-time Notifications**:
+    *   `notification-service` receives `ORDER_STATUS_UPDATED`.
+    *   Both the customer (Order is being prepared!) AND the restaurant (Order paid, start cooking!) receive instant Socket.io updates.
+
+**Key Insight**: This entire flow is **asynchronous and event-driven**. The payment-service does not directly call order-service—they communicate via RabbitMQ events, ensuring loose coupling.
+
 ---
 
 This comprehensive document covers all major technical aspects of the Food Delivery Aggregator architecture. For any specific deep-dive, refer to the linked source files.
+
+---
+
+## 14. API Reference Summary
+
+### 14.1 Auth Service (`/auth/*`)
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/auth/signup` | POST | No | Register new user |
+| `/auth/signin` | POST | No | Login, returns JWT tokens |
+| `/auth/logout` | POST | JWT | Invalidate refresh token |
+| `/auth/me` | GET | JWT | Get current user info |
+| `/auth/refresh-token` | POST | No | Exchange refresh token for new access token |
+| `/auth/verify-email` | GET | No | Verify email with token |
+| `/auth/forgot-password` | POST | No | Request password reset email |
+| `/auth/reset-password` | POST | No | Reset password with token |
+| `/auth/change-password` | POST | JWT | Change password (logged in user) |
+| `/auth/users` | GET | JWT (Admin) | List all users |
+| `/auth/users/stats` | GET | JWT (Admin) | Get user statistics |
+| `/auth/users/profile` | GET | JWT | Get own profile |
+| `/auth/users/profile` | PATCH | JWT | Update own profile |
+| `/auth/users/:id` | GET | JWT (Admin) | Get user by ID |
+| `/auth/users/:id` | DELETE | JWT (Admin) | Delete user |
+| `/auth/users/:id/role` | PATCH | JWT (Admin) | Update user role |
+
+### 14.2 Order Service (`/order/*`)
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/order/api/v1/restaurants/create` | POST | JWT (Owner) | Create restaurant |
+| `/order/api/v1/restaurants/get-all` | GET | No | List all restaurants |
+| `/order/api/v1/restaurants/search` | GET | No | Search restaurants |
+| `/order/api/v1/restaurants/get-my-own` | GET | JWT (Owner) | Get own restaurant |
+| `/order/api/v1/restaurants/:id` | GET | No | Get restaurant by ID |
+| `/order/api/v1/restaurants/:id` | PUT | JWT (Owner) | Update restaurant |
+| `/order/api/v1/restaurants/:id` | DELETE | JWT (Owner) | Delete restaurant |
+| `/order/api/v1/items/create` | POST | JWT (Owner) | Create menu item |
+| `/order/api/v1/items/:itemId` | GET | No | Get item by ID |
+| `/order/api/v1/items/restaurant/:id` | GET | No | Get items by restaurant |
+| `/order/api/v1/items/:itemId` | PUT | JWT (Owner) | Update item |
+| `/order/api/v1/items/:itemId` | DELETE | JWT (Owner) | Delete item |
+| `/order/api/v1/orders/create` | POST | JWT | Create order |
+| `/order/api/v1/orders/get-by-user` | GET | JWT | Get orders by current user |
+| `/order/api/v1/orders/available-for-drivers` | GET | JWT (Driver) | Get orders ready for pickup |
+| `/order/api/v1/orders/get-by-driver` | GET | JWT (Driver) | Get orders assigned to driver |
+| `/order/api/v1/orders/:orderId` | GET | JWT | Get order by ID |
+| `/order/api/v1/orders/restaurant/:id` | GET | JWT (Owner) | Get orders by restaurant |
+| `/order/api/v1/orders/:orderId/status` | PATCH | JWT (Owner) | Update order status |
+| `/order/api/v1/orders/claim/:orderId` | PATCH | JWT (Driver) | Claim order for delivery |
+| `/order/api/v1/orders/delivery-status/:orderId` | PATCH | JWT (Driver) | Update delivery status |
+| `/order/api/v1/orders/review/:orderId` | POST | JWT | Create review for order |
+| `/order/api/v1/orders/metrics/all` | GET | JWT (Admin) | Get platform metrics |
+| `/order/api/v1/orders/restaurant/:id/metrics` | GET | JWT (Owner) | Get restaurant metrics |
+
+### 14.3 Payment Service (`/payment/*`)
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/initiate` | POST | JWT | Initiate payment (Stripe/Chapa) |
+| `/order/:orderId` | GET | JWT | Get payment by order ID |
+| `/:id` | GET | JWT | Get payment by ID |
+| `/sandbox/success/:paymentId` | GET | No | Sandbox payment success callback |
+| `/webhook/stripe` | POST | No | Stripe webhook handler |
+| `/webhook/chapa` | POST | No | Chapa webhook handler |
+
+### 14.4 Notification Service (`/notification/*`)
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/notification` | GET | No | Health check |
+| `/notification/api/v1` | GET | No | List all notifications |
+| `/notification/api/v1/user/:userId` | GET | JWT | Get notifications for user |
+| `/notification/api/v1/:id/read` | PATCH | JWT | Mark notification as read |
+| `/notification/api/v1/user/:userId/read-all` | PATCH | JWT | Mark all notifications as read |
+| `/notification/api/v1/:id` | DELETE | JWT | Delete notification |
+| `/notification/api/v1/user/:userId/unread-count` | GET | JWT | Get unread count |
+
+### 14.5 Health Endpoints (All Services)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/health` | GET | Liveness probe (is app running?) |
+| `/health/ready` | GET | Readiness probe (is app ready to serve?) |
+
+---
+
+## 15. Environment Variables Reference
+
+### 15.1 Shared Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `JWT_SECRET` | Shared secret for JWT signing | `supersecret` |
+| `JWT_REFRESH_SECRET` | Secret for refresh token signing | `supersecretrefresh` |
+| `RABBITMQ_URL` | RabbitMQ connection string | `amqp://guest:guest@rabbitmq:5672` |
+
+### 15.2 Auth Service
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:123@auth-db:5432/auth_db` |
+| `SMTP_HOST` | SMTP server hostname | `mailhog` |
+| `SMTP_PORT` | SMTP server port | `1025` |
+| `SMTP_USER` | SMTP username | `test` |
+| `SMTP_PASS` | SMTP password | `test` |
+| `SMTP_FROM` | Sender email address | `noreply@example.com` |
+| `FRONTEND_URL` | Frontend URL for email links | `http://localhost:3000` |
+
+### 15.3 Order Service
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:123@order-db:5432/order` |
+| `PORT` | Service port | `4002` |
+
+### 15.4 Payment Service
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@payment-db:5432/paymentdb` |
+| `REDIS_URL` | Redis connection string | `redis://redis:6379` |
+| `STRIPE_SECRET_KEY` | Stripe API secret key | `sk_test_...` |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | `whsec_...` |
+| `CHAPA_SECRET_KEY` | Chapa API secret key | `CHASECK_TEST-...` |
+| `PAYMENT_MODE` | Payment mode: `stripe`, `chapa`, or `sandbox` | `sandbox` |
+
+### 15.5 Notification Service
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://notify_user:notify_password@db-notif:5432/notify_db` |
+| `PORT` | Service port | `4004` |
+
+### 15.6 Frontend
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API base URL | `http://localhost:8080` |
+
+---
+
+## 16. Error Handling Strategy
+
+### 16.1 Standard Error Response Format
+
+All services return errors in a consistent JSON format:
+
+```json
+{
+  "statusCode": 400,
+  "message": "Validation failed",
+  "error": "Bad Request",
+  "details": [
+    { "field": "email", "message": "Invalid email format" }
+  ]
+}
+```
+
+### 16.2 HTTP Status Codes Used
+
+| Status Code | Meaning | When Used |
+|-------------|---------|-----------|
+| `200` | OK | Successful GET, PATCH |
+| `201` | Created | Successful POST (resource created) |
+| `400` | Bad Request | Validation errors, malformed request |
+| `401` | Unauthorized | Missing or invalid JWT token |
+| `403` | Forbidden | Valid token but insufficient permissions |
+| `404` | Not Found | Resource does not exist |
+| `409` | Conflict | Duplicate resource (e.g., email already exists) |
+| `500` | Internal Server Error | Unexpected server error |
+
+### 16.3 RabbitMQ Message Error Handling
+
+| Scenario | Handling |
+|----------|----------|
+| Consumer throws exception | Message is auto-acknowledged (`noAck: true`), lost |
+| Consumer offline | Messages queue up (durable queue) |
+| Invalid message format | Consumer logs error, message is discarded |
+
+> [!WARNING]
+> **Current Limitation**: Messages are auto-acknowledged. If processing fails, the message is lost. For production, implement manual acknowledgement and dead-letter queues.
+
+### 16.4 Frontend Error Handling
+
+The frontend `ApiClient` handles errors centrally:
+
+```typescript
+// If response is not OK
+if (!response.ok) {
+  if (response.status === 401) {
+    // Try refresh token, then retry
+  }
+  throw new Error(data.message || 'An error occurred');
+}
+```
+
+---
+
+## 17. Deployment Runbook
+
+### 17.1 Local Development (Docker Compose)
+
+```bash
+# 1. Navigate to infrastructure directory
+cd infrastructure
+
+# 2. Start all services
+docker-compose up -d
+
+# 3. Run database migrations
+docker exec -it auth-service npx prisma migrate deploy
+docker exec -it order-service npx prisma migrate deploy
+docker exec -it payment-service npx prisma migrate deploy
+
+# 4. Access services
+# Frontend:     http://localhost:3000
+# API Gateway:  http://localhost:8080
+# RabbitMQ UI:  http://localhost:15672 (guest/guest)
+# MailHog UI:   http://localhost:8025
+
+# 5. View logs
+docker-compose logs -f auth-service
+
+# 6. Stop all services
+docker-compose down
+```
+
+### 17.2 Kubernetes Deployment (Minikube)
+
+```bash
+# 1. Start Minikube
+minikube start --memory=4096 --cpus=2
+
+# 2. Enable Ingress addon
+minikube addons enable ingress
+
+# 3. Navigate to k8s directory
+cd infrastructure/k8s
+
+# 4. Apply all manifests
+./apply.sh
+# OR manually:
+kubectl apply -f shared/
+kubectl apply -f db/
+kubectl apply -f apps/
+
+# 5. Wait for pods to be ready
+kubectl get pods -w
+
+# 6. Get Minikube IP
+minikube ip
+
+# 7. Access services (add to /etc/hosts)
+# <minikube-ip> food-delivery.local
+
+# 8. View logs
+kubectl logs -f deployment/auth-service
+
+# 9. Port-forward for debugging
+kubectl port-forward svc/auth-service 4000:4000
+```
+
+### 17.3 Database Migrations
+
+```bash
+# Auth Service (NestJS/Prisma)
+docker exec -it auth-service npx prisma migrate deploy
+docker exec -it auth-service npx prisma generate
+
+# Order Service (Express/Prisma)
+docker exec -it order-service npx prisma migrate deploy
+
+# Payment Service (Express/Prisma)
+docker exec -it payment-service npx prisma migrate deploy
+
+# Notification Service (NestJS/TypeORM - auto-syncs)
+# No manual migration needed in dev mode
+```
+
+---
+
+## 18. Delivery Driver Flow
+
+### 18.1 Driver Lifecycle Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Driver as "Delivery Driver"
+    participant ORDER as "order-service"
+    participant RMQ as "RabbitMQ"
+    participant NOTIF as "notification-service"
+    participant WS as "Socket.io"
+    participant Customer
+
+    Driver->>ORDER: GET /orders/available-for-drivers
+    ORDER->>Driver: List of orders with status READY
+
+    Driver->>ORDER: PATCH /orders/claim/:orderId
+    ORDER->>ORDER: Set driverId, deliveryStatus = PENDING
+    ORDER->>RMQ: ORDER_CLAIMED event
+    ORDER->>Driver: { success: true }
+
+    RMQ-->>NOTIF: ORDER_CLAIMED
+    NOTIF->>WS: Notify customer
+    WS-->>Customer: "Driver has claimed your order!"
+
+    Driver->>ORDER: PATCH /orders/delivery-status/:orderId { status: PICKED_UP }
+    ORDER->>RMQ: DELIVERY_STATUS_UPDATED
+    RMQ-->>NOTIF: DELIVERY_STATUS_UPDATED
+    NOTIF->>WS: Notify customer
+    WS-->>Customer: "Driver has picked up your order!"
+
+    Driver->>ORDER: PATCH /orders/delivery-status/:orderId { status: ON_THE_WAY }
+    ORDER->>RMQ: DELIVERY_STATUS_UPDATED
+    WS-->>Customer: "Driver is on the way!"
+
+    Driver->>ORDER: PATCH /orders/delivery-status/:orderId { status: DELIVERED }
+    ORDER->>ORDER: Update order status = COMPLETED
+    ORDER->>RMQ: ORDER_COMPLETED
+    WS-->>Customer: "Order delivered! Please rate your experience."
+```
+
+**Diagram Explanation:**
+1.  **Browse Available Orders**: Driver views orders that are `READY` for pickup.
+2.  **Claim Order**: Driver claims an order, which assigns them as the `driverId`.
+3.  **Pickup**: Driver picks up the order and updates status to `PICKED_UP`.
+4.  **Transit**: Driver marks order as `ON_THE_WAY`.
+5.  **Delivery**: Driver marks order as `DELIVERED`, completing the order lifecycle.
+6.  **Real-time Updates**: Customer receives Socket.io notifications at each step.
+
+### 18.2 Delivery Status State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : Order claimed
+    PENDING --> PICKED_UP : Driver picks up
+    PICKED_UP --> ON_THE_WAY : Driver starts delivery
+    ON_THE_WAY --> DELIVERED : Order delivered
+    DELIVERED --> [*]
+```
+
+---
+
+## 19. Role-Based Access Control (RBAC) Matrix
+
+| Endpoint Category | CUSTOMER | RESTAURANT | DELIVERY | ADMIN |
+|-------------------|----------|------------|----------|-------|
+| **Auth** |
+| Sign up / Sign in | ✅ | ✅ | ✅ | ✅ |
+| View own profile | ✅ | ✅ | ✅ | ✅ |
+| Update own profile | ✅ | ✅ | ✅ | ✅ |
+| List all users | ❌ | ❌ | ❌ | ✅ |
+| Delete user | ❌ | ❌ | ❌ | ✅ |
+| Update user role | ❌ | ❌ | ❌ | ✅ |
+| **Restaurants** |
+| View restaurants | ✅ | ✅ | ✅ | ✅ |
+| Create restaurant | ❌ | ✅ | ❌ | ✅ |
+| Update own restaurant | ❌ | ✅ | ❌ | ✅ |
+| Delete restaurant | ❌ | ✅ (own) | ❌ | ✅ |
+| **Menu Items** |
+| View menu items | ✅ | ✅ | ✅ | ✅ |
+| Create menu item | ❌ | ✅ | ❌ | ✅ |
+| Update menu item | ❌ | ✅ (own) | ❌ | ✅ |
+| Delete menu item | ❌ | ✅ (own) | ❌ | ✅ |
+| **Orders** |
+| Create order | ✅ | ❌ | ❌ | ✅ |
+| View own orders | ✅ | ✅ | ✅ | ✅ |
+| View restaurant orders | ❌ | ✅ (own) | ❌ | ✅ |
+| Update order status | ❌ | ✅ (own) | ❌ | ✅ |
+| Claim order for delivery | ❌ | ❌ | ✅ | ✅ |
+| Update delivery status | ❌ | ❌ | ✅ | ✅ |
+| View platform metrics | ❌ | ❌ | ❌ | ✅ |
+| **Payments** |
+| Initiate payment | ✅ | ❌ | ❌ | ✅ |
+| View own payments | ✅ | ✅ | ❌ | ✅ |
+| **Notifications** |
+| View own notifications | ✅ | ✅ | ✅ | ✅ |
+| Mark as read | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## 20. Known Limitations & Future Improvements
+
+### 20.1 Current Limitations
+
+| Area | Limitation | Impact |
+|------|------------|--------|
+| **Rate Limiting** | No rate limiting on APIs | Vulnerable to DoS attacks |
+| **Distributed Tracing** | No OpenTelemetry/Jaeger integration | Hard to debug cross-service issues |
+| **Message Retry** | `noAck: true` means failed messages are lost | Event processing is not guaranteed |
+| **Idempotency** | Payment webhooks may not be idempotent | Duplicate payments possible |
+| **Caching** | Only payment-service uses Redis | DB load could be reduced |
+| **Search** | Basic LIKE queries for restaurant search | No full-text search |
+| **File Uploads** | Not implemented | No restaurant images/menus |
+| **Mobile Push** | Only WebSocket notifications | No Firebase/APNs integration |
+
+### 20.2 Recommended Improvements
+
+1.  **Add Rate Limiting**
+    ```bash
+    # Example: express-rate-limit
+    npm install express-rate-limit
+    ```
+
+2.  **Implement Dead-Letter Queues**
+    - Failed messages go to a DLQ for manual inspection
+    - Prevents message loss
+
+3.  **Add Distributed Tracing**
+    - Install OpenTelemetry SDK
+    - Export traces to Jaeger or Zipkin
+
+4.  **Implement Kubernetes HPA**
+    ```yaml
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    spec:
+      minReplicas: 2
+      maxReplicas: 10
+      metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              averageUtilization: 70
+    ```
+
+5.  **Add API Versioning**
+    - Currently mixed (`/api/v1` in some, none in others)
+    - Standardize to `/api/v1/*` across all services
+
+---
+
+## 21. Testing Strategy
+
+### 21.1 Current Testing Status
+
+| Service | Unit Tests | Integration Tests | E2E Tests |
+|---------|------------|-------------------|-----------|
+| `auth-service` | Partial | No | No |
+| `order-service` | No | No | No |
+| `payment-service` | No | No | No |
+| `notification-service` | No | No | No |
+| `frontend` | No | No | No |
+
+### 21.2 Recommended Testing Approach
+
+**Unit Tests** (Jest):
+```bash
+# Run in each service
+npm run test
+```
+
+**Integration Tests** (Supertest):
+```javascript
+// Example: auth.integration.test.ts
+const response = await request(app)
+  .post('/auth/signup')
+  .send({ email: 'test@example.com', password: 'password123' });
+expect(response.status).toBe(201);
+```
+
+**E2E Tests** (Playwright):
+```bash
+# Run from frontend directory
+npx playwright test
+```
+
+### 21.3 Test Database Strategy
+
+Use a separate test database or Docker containers:
+
+```yaml
+# docker-compose.test.yml
+services:
+  test-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: test_db
+```
+
+---
+
+## 22. Glossary of Terms
+
+| Term | Definition |
+|------|------------|
+| **Access Token** | Short-lived JWT (15 min) used to authenticate API requests |
+| **Refresh Token** | Long-lived token (7 days) used to obtain new access tokens |
+| **Circuit Breaker** | Pattern that prevents cascading failures by failing fast when a dependency is down |
+| **Dead-Letter Queue (DLQ)** | Queue where failed messages are sent for later inspection |
+| **Deployment** | Kubernetes resource that manages stateless applications |
+| **Exchange** | RabbitMQ component that routes messages to queues based on rules |
+| **Graceful Degradation** | System continues to function (with reduced capability) when a component fails |
+| **Ingress** | Kubernetes resource that manages external access to services |
+| **JWT** | JSON Web Token - a compact, URL-safe means of representing claims |
+| **Microservice** | Independently deployable service that does one thing well |
+| **Namespace** | Kubernetes resource that isolates resources within a cluster |
+| **Pod** | Smallest deployable unit in Kubernetes (one or more containers) |
+| **Queue** | RabbitMQ component that stores messages until consumed |
+| **Routing Key** | String used by RabbitMQ exchanges to route messages to queues |
+| **Service** | Kubernetes resource that provides stable networking for pods |
+| **StatefulSet** | Kubernetes resource for managing stateful applications (like databases) |
+| **Topic Exchange** | RabbitMQ exchange type that routes based on pattern matching |
+| **WebSocket** | Protocol for full-duplex communication over a single TCP connection |
+
+---
+
+## 23. Order Status Reference
+
+### 23.1 Order Status Values
+
+| Status | Description | Set By |
+|--------|-------------|--------|
+| `PENDING` | Order created, awaiting payment | System |
+| `PREPARING` | Payment received, restaurant is cooking | Restaurant Owner |
+| `READY` | Food is ready for pickup | Restaurant Owner |
+| `COMPLETED` | Order delivered to customer | Driver |
+| `CANCELLED` | Order was cancelled | Customer/Owner/Admin |
+
+### 23.2 Delivery Status Values
+
+| Status | Description | Set By |
+|--------|-------------|--------|
+| `PENDING` | Order claimed, awaiting pickup | Driver (auto on claim) |
+| `PICKED_UP` | Driver picked up from restaurant | Driver |
+| `ON_THE_WAY` | Driver is en route to customer | Driver |
+| `DELIVERED` | Order delivered to customer | Driver |
+
+### 23.3 State Transition Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : Order Created
+    PENDING --> PREPARING : Payment Success
+    PENDING --> CANCELLED : Customer Cancels
+    PREPARING --> READY : Food Prepared
+    PREPARING --> CANCELLED : Owner Cancels
+    READY --> COMPLETED : Delivered
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+```
+
+**Diagram Explanation:**
+1.  **PENDING**: Order starts here when customer places it.
+2.  **PREPARING**: Moves here after successful payment.
+3.  **READY**: Restaurant marks order ready for driver pickup.
+4.  **COMPLETED**: Driver marks as delivered.
+5.  **CANCELLED**: Can happen from PENDING or PREPARING states.
+
+---
+
+This concludes the comprehensive architecture documentation. For questions or contributions, please refer to the repository README.
 
