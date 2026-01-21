@@ -843,71 +843,86 @@ erDiagram
 ```mermaid
 erDiagram
     RESTAURANT {
-        uuid id PK
-        string name UK
+        uuid id
+        string name
         string location
-        string ownerId "FK to auth_db.User"
+        string ownerId
         datetime createdAt
         datetime updatedAt
     }
-    
+
     ITEM {
-        uuid id PK
+        uuid id
         string name
         string description
-        decimal unitPrice "precision: 10,2"
-        uuid restaurantId FK
+        decimal unitPrice
+        uuid restaurantId
         datetime createdAt
         datetime updatedAt
     }
-    
+
     ORDER {
-        uuid id PK
-        string userId "FK to auth_db.User"
-        uuid restaurantId FK
+        uuid id
+        string userId
+        uuid restaurantId
         string customerName
         string customerEmail
-        decimal totalPrice "precision: 10,2"
-        OrderStatus status "PENDING|PREPARING|READY|COMPLETED|CANCELLED"
-        DeliveryStatus deliveryStatus "PENDING|PICKED_UP|ON_THE_WAY|DELIVERED"
-        string driverId "FK to auth_db.User"
-        boolean isPaid "default: false"
+        decimal totalPrice
+        string status
+        string deliveryStatus
+        string driverId
+        boolean isPaid
         string couponCode
         decimal discount
         datetime createdAt
         datetime updatedAt
     }
-    
+
     ORDER_ITEM {
-        uuid id PK
-        uuid orderId FK
-        uuid itemId FK
+        uuid id
+        uuid orderId
+        uuid itemId
         int quantity
-        decimal price "price at time of order"
+        decimal price
     }
-    
+
     REVIEW {
-        uuid id PK
-        uuid orderId FK UK
-        string userId "FK to auth_db.User"
-        int rating "1-5"
+        uuid id
+        uuid orderId
+        string userId
+        int rating
         string comment
         datetime createdAt
     }
-    
+
     COUPON {
-        string code PK
+        string code
         decimal discount
-        boolean isActive "default: true"
+        boolean isActive
         datetime createdAt
     }
-    
-    RESTAURANT ||--o{ ITEM : "has many"
-    RESTAURANT ||--o{ ORDER : "receives"
-    ORDER ||--o{ ORDER_ITEM : "contains"
-    ITEM ||--o{ ORDER_ITEM : "included in"
-    ORDER ||--o| REVIEW : "has one"
+
+    RESTAURANT ||--o{ ITEM : has
+    RESTAURANT ||--o{ ORDER : receives
+    ORDER ||--o{ ORDER_ITEM : contains
+    ITEM ||--o{ ORDER_ITEM : included_in
+    ORDER ||--o| REVIEW : has
+
 ```
+OrderStatus:
+- PENDING
+- PREPARING
+- READY
+- COMPLETED
+- CANCELLED
+
+DeliveryStatus:
+- PENDING
+- PICKED_UP
+- ON_THE_WAY
+- DELIVERED
+
+
 
 #### 8.1.3 Payment Database ER Diagram
 
