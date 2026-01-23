@@ -1180,6 +1180,31 @@ export class Notification {
 -   [payment schema](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/payment-service/prisma/schema.prisma)
 -   [notification entity](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/notification-service/src/notifications/entities/notification.entity.ts)
 
+### 8.6 Database Persistence & Migrations
+
+#### 8.6.1 Persistence (StatefulSets)
+In the Kubernetes environment, databases are deployed as **StatefulSets** rather than simple Deployments.
+*   **Why**: Pods are ephemeral. If a standard Deployment pod restarts, its filesystem is wiped.
+*   **Solution**: We use **PersistentVolumeClaims (PVC)** mounted to `/var/lib/postgresql/data`. This ensures that even if the `order-db` pod is deleted and recreated on a different node, the data remains intact.
+
+#### 8.6.2 Migration Strategy
+We use **Prisma Migrate** to manage database schema changes.
+
+1.  **Development**:
+    *   Developers run `npx prisma migrate dev`.
+    *   This generates a SQL file in `prisma/migrations/`.
+2.  **Production (Kubernetes)**:
+    *   Migrations **MUST** be applied to the production database.
+    *   **Command**: `npx prisma migrate deploy`
+    *   **Execution**: This is typically run via an **InitContainer** (before the app starts) or manually via `kubectl exec` during troubleshooting.
+
+> [!TIP]
+> **Troubleshooting Missing Tables**: If a service logs errors like `Relation "Restaurant" does not exist`, it means migrations haven't run.
+> **Fix**:
+> ```bash
+> kubectl exec -it <pod-name> -- npx prisma migrate deploy
+> ```
+
 ---
 
 ## 9. Security Patterns
