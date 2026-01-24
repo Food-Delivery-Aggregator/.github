@@ -1,6 +1,6 @@
 <div align="center">
 
-# AASTU Food Delivery Aggregator System
+# AASTU Food Delivery Aggregator System - CosmicBites
 
 ### Distributed Systems Mini Project – Group 2
 
