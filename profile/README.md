@@ -1,6 +1,6 @@
 <div align="center">
 
-# AASTU Food Delivery Aggregator System - **CosmicBites**
+# AASTU Food Delivery Aggregator System
 
 ### Distributed Systems Mini Project – Group 2
 
@@ -38,6 +38,7 @@ The **Food Delivery Aggregator System** is a **microservices-based platform** th
 - **Service Independence**: Each microservice is independently deployable
 - **Asynchronous Communication**: Event-driven architecture with RabbitMQ
 - **Eventual Consistency**: Services synchronize state through events
+- **Distributed Referential Integrity**: Cross-service cleanup logic (e.g., User → Order cleanup)
 - **Scalability**: Kubernetes-ready with horizontal scaling support
 - **Fault Tolerance**: Circuit breakers and graceful degradation
 
@@ -78,6 +79,8 @@ This document provides an exhaustive technical analysis of the microservices arc
 11. [Frontend Architecture](#11-frontend-architecture)
 12. [Infrastructure: Docker & Kubernetes](#12-infrastructure-docker--kubernetes)
 13. [Complete Message Flow Diagrams](#13-complete-message-flow-diagrams)
+14. [Observability & Traceability](#14-observability--traceability)
+15. [API Reference Summary](#15-api-reference-summary)
 
 ---
 
@@ -109,14 +112,12 @@ The Food Delivery Aggregator is a microservices-based platform consisting of:
 The system operates on a **hybrid communication model** where synchronous HTTP/WebSocket requests handle immediate user intent, and asynchronous RabbitMQ messages ensure system-wide consistency and decoupling.
 
 ### 2.1 The Big Picture Architecture
-*Imported as an image*
-<img width="1221" height="635" alt="image" src="https://github.com/user-attachments/assets/984110d3-ff7c-4cc1-bb41-24edda528dda" />
-
 
 ```mermaid
 flowchart TD
     subgraph "External Clients"
         FE[Next.js Frontend]
+        MOBILE[Future Mobile App]
     end
 
     subgraph "API Gateway & Proxy"
@@ -138,8 +139,17 @@ flowchart TD
         NOTIFY["notification-service (:4004)"]
     end
 
+    subgraph "Databases (Persistent Layer)"
+        DB_AUTH[("auth-db (:5439)")]
+        DB_ORDER[("order-db (:5440)")]
+        DB_PAY[("payment-db (:5435)")]
+        DB_NOTIF[("db-notif (:5441)")]
+        REDIS[("redis (:6379)")]
+    end
+
     %% Synchronous Flows (HTTP/WS)
     FE <-->|HTTPS/REST/WS| NGX
+    MOBILE -.->|HTTPS/REST| NGX
     
     NGX -->|/auth/*| AUTH
     NGX -->|/order/*| ORDER
@@ -162,6 +172,13 @@ flowchart TD
     
     %% Real-time Push
     NOTIFY --"Socket.io Push"--> FE
+
+    %% Database Connections
+    AUTH --- DB_AUTH
+    ORDER --- DB_ORDER
+    PAY --- DB_PAY
+    PAY --- REDIS
+    NOTIFY --- DB_NOTIF
 ```
 
 ### 2.2 How Communication Modes Co-exist
@@ -1317,6 +1334,19 @@ async publish(routingKey: string, message: any): Promise<boolean> {
 | **Graceful Degradation**| RabbitMQ publish in auth       | Continue core operations if optional features fail |
 | **Timeout**            | opossum 3s timeout              | Prevent hanging on slow external calls     |
 
+### 10.6 Traceability & Observability (RabbitMQ Logs)
+
+To debug a distributed system, you need to know where a message started and where it ended. We've implemented **Structured RabbitMQ Logging** across all services.
+
+**Example Trace:**
+1. `payment-service`: `[RabbitMQ] Sent message to PAYMENT_EVENTS: { ... }`
+2. `order-service`: `[RabbitMQ] Received message from PAYMENT_EVENTS: { ... }`
+3. `order-service`: `[RabbitMQ] Publishing ORDER_STATUS_UPDATED to notification_queue`
+4. `notification-service`: `[RabbitMQ] Received ORDER_STATUS_UPDATED event: { ... }`
+
+> [!TIP]
+> By looking at the logs of all services simultaneously (`docker-compose logs -f`), you can see the "ripple effect" of a single user action as it travels through the entire cluster.
+
 ---
 
 ## 11. Frontend Architecture
@@ -1585,6 +1615,39 @@ This diagram shows the complete lifecycle of an order, from creation to payment 
 4.  **Real-time Notifications**:
     *   `notification-service` receives `ORDER_STATUS_UPDATED`.
     *   Both the customer (Order is being prepared!) AND the restaurant (Order paid, start cooking!) receive instant Socket.io updates.
+
+### 13.3 User Deletion → Distributed Cleanup (Synergy)
+
+This flow demonstrates **Distributed Referential Integrity**. When a user is deleted from the `auth-service`, all other microservices must synchronously or asynchronously clean up their own related data.
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant AUTH as "auth-service"
+    participant RMQ as "RabbitMQ"
+    participant ORDER as "order-service"
+    participant PAY as "payment-service"
+
+    Admin->>AUTH: DELETE /auth/users/:id
+    AUTH->>AUTH: Delete user from auth_db
+    AUTH->>RMQ: Publish "user.deleted" (userId)
+    AUTH->>Admin: 200 OK
+
+    par Cleanup
+        RMQ-->>ORDER: Receive "user.deleted"
+        ORDER->>ORDER: DELETE FROM orders WHERE userId = :id
+        
+        RMQ-->>PAY: Receive "user.deleted"
+        PAY->>PAY: DELETE FROM payments WHERE userId = :id
+    end
+
+    Note over ORDER, PAY: System-wide consistency achieved
+```
+
+**Technical Breakdown:**
+1.  **Decoupled Intent**: The `auth-service` only cares about users. It doesn't know that "Orders" or "Payments" even exist.
+2.  **Event Fan-out**: By publishing to a **Topic Exchange**, RabbitMQ "fans out" the deletion message to every service that has registered an interest in user events.
+3.  **Autonomous Cleanup**: Each service is responsible for its own data. This prevents the "Big Ball of Mud" where one database script has to touch 10 different tables across the system.
 
 **Key Insight**: This entire flow is **asynchronous and event-driven**. The payment-service does not directly call order-service—they communicate via RabbitMQ events, ensuring loose coupling.
 
