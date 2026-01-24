@@ -113,6 +113,10 @@ The system operates on a **hybrid communication model** where synchronous HTTP/W
 
 ### 2.1 The Big Picture Architecture
 
+*imported as an image*
+<img width="1221" height="635" alt="image" src="https://github.com/user-attachments/assets/219616eb-809f-4001-9e27-67eb624e5994" />
+
+
 ```mermaid
 flowchart TD
     subgraph "External Clients"
