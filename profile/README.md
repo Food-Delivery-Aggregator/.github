@@ -114,7 +114,6 @@ The system operates on a **hybrid communication model** where synchronous HTTP/W
 flowchart TD
     subgraph "External Clients"
         FE[Next.js Frontend]
-        MOBILE[Future Mobile App]
     end
 
     subgraph "API Gateway & Proxy"
