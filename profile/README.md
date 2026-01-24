@@ -109,6 +109,9 @@ The Food Delivery Aggregator is a microservices-based platform consisting of:
 The system operates on a **hybrid communication model** where synchronous HTTP/WebSocket requests handle immediate user intent, and asynchronous RabbitMQ messages ensure system-wide consistency and decoupling.
 
 ### 2.1 The Big Picture Architecture
+*Imported as an image*
+<img width="1221" height="635" alt="image" src="https://github.com/user-attachments/assets/984110d3-ff7c-4cc1-bb41-24edda528dda" />
+
 
 ```mermaid
 flowchart TD
