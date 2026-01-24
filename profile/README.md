@@ -137,7 +137,6 @@ flowchart TD
 
     %% Synchronous Flows (HTTP/WS)
     FE <-->|HTTPS/REST/WS| NGX
-    MOBILE -.->|HTTPS/REST| NGX
     
     NGX -->|/auth/*| AUTH
     NGX -->|/order/*| ORDER
