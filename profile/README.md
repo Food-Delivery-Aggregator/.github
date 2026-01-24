@@ -1,6 +1,6 @@
 <div align="center">
 
-# AASTU Food Delivery Aggregator System
+# AASTU Food Delivery Aggregator System - **CosmicBites**
 
 ### Distributed Systems Mini Project – Group 2
 
@@ -66,7 +66,7 @@ This document provides an exhaustive technical analysis of the microservices arc
 ## Table of Contents
 
 1.  [System Overview](#1-system-overview)
-2.  [How Services Communicate With Each Other](#2-how-services-communicate-with-each-other)
+2.  [Unified Communication Model (Sync & Async)](#2-unified-communication-model-sync--async)
 3.  [How the API Gateway Validates Tokens](#3-how-the-api-gateway-validates-tokens)
 4.  [Complete Authentication Flow](#4-complete-authentication-flow)
 5.  [How the Notification Service Handles Events](#5-how-the-notification-service-handles-events)
@@ -104,20 +104,29 @@ The Food Delivery Aggregator is a microservices-based platform consisting of:
 
 ---
 
-## 2. How Services Communicate With Each Other
+## 2. Unified Communication Model (Sync & Async)
 
-The system uses a **hybrid communication model** combining synchronous HTTP requests with asynchronous messaging via RabbitMQ.
+The system operates on a **hybrid communication model** where synchronous HTTP/WebSocket requests handle immediate user intent, and asynchronous RabbitMQ messages ensure system-wide consistency and decoupling.
 
-### 2.1 Synchronous Communication (HTTP via Nginx)
+### 2.1 The Big Picture Architecture
 
 ```mermaid
-flowchart LR
-    subgraph "Client"
-        F[Next.js Frontend]
+flowchart TD
+    subgraph "External Clients"
+        FE[Next.js Frontend]
+        MOBILE[Future Mobile App]
     end
 
-    subgraph "API Layer"
-        N["Nginx (:8080)"]
+    subgraph "API Gateway & Proxy"
+        NGX["Nginx (:8080)"]
+    end
+
+    subgraph "Message Broker (Async Backbone)"
+        RMQ{{"RabbitMQ"}}
+        EX_AUTH["auth.events (Topic)"]
+        Q_NOTIF["notification_queue"]
+        Q_PAY["PAYMENT_EVENTS"]
+        Q_ORDER_USER["order_user_events_queue"]
     end
 
     subgraph "Microservices"
@@ -127,119 +136,58 @@ flowchart LR
         NOTIFY["notification-service (:4004)"]
     end
 
-    F -->|"HTTP/HTTPS"| N
-    N -->|"/auth/*"| AUTH
-    N -->|"/order/*"| ORDER
-    N -->|"/payment/*"| PAY
-    N -->|"/notification/*"| NOTIFY
-    N -->|"/socket.io/*"| NOTIFY
+    %% Synchronous Flows (HTTP/WS)
+    FE <-->|HTTPS/REST/WS| NGX
+    MOBILE -.->|HTTPS/REST| NGX
+    
+    NGX -->|/auth/*| AUTH
+    NGX -->|/order/*| ORDER
+    NGX -->|/payment/*| PAY
+    NGX -->|/notification/*| NOTIFY
+    NGX <-->|/socket.io/*| NOTIFY
+
+    %% Asynchronous Flows (RabbitMQ)
+    AUTH --"Pub: user.created, user.deleted"--> EX_AUTH
+    EX_AUTH --"Route: user.#"--> Q_NOTIF
+    EX_AUTH --"Route: user.deleted"--> Q_ORDER_USER
+    
+    ORDER --"Pub: ORDER_CREATED"--> Q_NOTIF
+    ORDER --"Sub"--> Q_PAY
+    ORDER --"Sub (Cleanup)"--> Q_ORDER_USER
+
+    PAY --"Pub: PAYMENT_SUCCESS"--> Q_PAY
+    
+    Q_NOTIF --> NOTIFY
+    
+    %% Real-time Push
+    NOTIFY --"Socket.io Push"--> FE
 ```
 
-**Diagram Explanation:**
-1.  **Single Entry Point**: The user's browser (via the Next.js frontend) sends all API requests to one address: `http://localhost:8080` (Nginx).
-2.  **Path-Based Routing**: Nginx acts like a traffic cop. It looks at the URL path (e.g., `/auth/login`) and decides which internal service should handle the request.
-3.  **Internal Forwarding**: Nginx forwards the request to the correct backend service. The frontend never talks directly to `auth-service:4000`; it only knows about Nginx.
-4.  **Why This Matters**: This decouples the frontend from backend service locations. If `auth-service` moves to a different port or IP, only Nginx config changes—not the frontend code.
+### 2.2 How Communication Modes Co-exist
 
-**How Nginx Routes Requests:**
+Instead of separate layers, the system uses "Trigger and Sync" logical flows to maintain responsiveness and data integrity.
 
-Nginx uses location-based routing to direct requests to the appropriate backend service. Each service has its own path prefix.
+#### 1. Synchronous (Request-Response)
+Used when the user expects an **immediate result**.
+- **User Actions**: Logging in, searching for food, or clicking "Pay Now".
+- **Implementation**: Handled by **Nginx** routing requests to the specific microservice via HTTP.
+- **Benefit**: Low latency for the primary user experience.
 
-```nginx
-# From nginx.conf
+#### 2. Asynchronous (Event-Driven)
+Used for **side effects** and **cross-service synchronization**.
+- **System Actions**: Sending a welcome email, updating an order status after payment, or cleaning up data when a user is deleted.
+- **Implementation**: Services publish events to **RabbitMQ**. One or more services subscribe and react whenever they are ready.
+- **Benefit**: Ensures high availability. If the `notification-service` is temporarily down, the `order-service` can still function; messages will just wait in RabbitMQ until the consumer recovers.
 
-location /auth/ {
-    proxy_pass http://auth_service;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-}
+#### 3. Real-time Push (WebSockets)
+Used for **active status updates** without page refreshes.
+- **Implementation**: The `notification-service` uses **Socket.io** to "push" messages directly to the frontend.
+- **Example**: A Chef marks an order as "Ready", and the customer sees the update instantly.
 
-location /order/ {
-    proxy_pass http://order_service;
-    # ... headers
-}
-
-location /payment/ {
-    rewrite ^/payment/?(.*)$ /$1 break;  # Strips /payment prefix
-    proxy_pass http://payment_service;
-}
-
-location /socket.io/ {
-    proxy_pass http://notification_service;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";  # WebSocket upgrade
-}
-```
-
-> [!IMPORTANT]
-> **CORS Handling**: Nginx handles OPTIONS preflight requests directly, adding the necessary `Access-Control-*` headers. For actual requests, the backend services handle CORS via `app.enableCors()`.
-
-**Key File:** [nginx.conf](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/api-gateway/nginx/nginx.conf)
-
-### 2.2 Asynchronous Communication (RabbitMQ)
-
-For decoupled, event-driven communication, services publish and consume messages through **RabbitMQ**.
-
-```mermaid
-flowchart TD
-    subgraph "Publishers"
-        AUTH_PUB["auth-service - (Topic Exchange)"]
-        ORDER_PUB["order-service - (Direct Queue)"]
-        PAY_PUB["payment-service - (Direct Queue)"]
-    end
-
-    subgraph "RabbitMQ Broker"
-        EXCHANGE_AUTH["auth.events - (topic exchange)"]
-        QUEUE_NOTIF["notification_queue - (durable queue)"]
-        QUEUE_PAY_EVENTS["PAYMENT_EVENTS - (durable queue)"]
-    end
-
-    subgraph "Consumers"
-        NOTIFY_CON["notification-service"]
-        ORDER_CON["order-service"]
-        AUDIT_CON["(Future Audit Service)"]
-    end
-
-    AUTH_PUB -->|"user.created, user.updated"| EXCHANGE_AUTH
-    EXCHANGE_AUTH -->|"bind: user.#"| QUEUE_NOTIF
-    EXCHANGE_AUTH -.->|"bind: user.#"| AUDIT_CON
-
-    ORDER_PUB -->|"ORDER_CREATED, DELIVERY_STATUS_UPDATED"| QUEUE_NOTIF
-    PAY_PUB -->|"PAYMENT_SUCCESS, PAYMENT_FAILED"| QUEUE_PAY_EVENTS
-
-    QUEUE_NOTIF --> NOTIFY_CON
-    QUEUE_PAY_EVENTS --> ORDER_CON
-```
-
-**Diagram Explanation:**
-1.  **Publishers (Left)**: Services like `auth-service` and `order-service` publish events when something important happens (e.g., a new user registers, an order is created).
-2.  **RabbitMQ Broker (Center)**: RabbitMQ receives these events. It uses different patterns:
-    *   **Topic Exchange** (`auth.events`): Acts like a mail sorting office. It routes messages based on patterns (e.g., `user.#` matches `user.created`, `user.updated`).
-    *   **Direct Queue** (`notification_queue`): A simple mailbox. Messages go directly into the queue.
-3.  **Consumers (Right)**: `notification-service` listens to the queue. When a message arrives, it processes it (e.g., sends an email, pushes a WebSocket notification).
-4.  **Why This Matters**: Services are **decoupled**. The `auth-service` does not know or care that `notification-service` exists—it just publishes events. If notification-service is down, messages wait in the queue.
-
-**Two Messaging Patterns:**
-
-| Pattern            | Used By           | How It Works                                                                 |
-|--------------------|-------------------|------------------------------------------------------------------------------|
-| **Topic Exchange** | `auth-service`    | Publishes to `auth.events` exchange with routing keys like `user.created`. Consumers bind with wildcard patterns (`user.#`). |
-| **Direct Queue**   | `order-service`, `payment-service` | Publishes directly to a named queue (`notification_queue`, `PAYMENT_EVENTS`). |
-
-**Why Topic Exchange for Auth?**
--   Supports **multiple consumers** with different binding patterns
--   Future services can subscribe to specific user events (e.g., `user.role.updated`) without modifying the publisher
-
-**Why Direct Queue for Orders/Payments?**
--   Simple point-to-point messaging
--   Each message is consumed by exactly one consumer
--   Guaranteed ordering within the queue
-
-**Key Files:**
--   Auth Publisher: [rabbitmq.service.ts](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/auth-service/src/rabbitmq/rabbitmq.service.ts)
--   Order Publisher: [order.service.js](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/order-service/src/core/services/order.service.js)
--   Payment Publisher: [paymentController.js](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/payment-service/src/controllers/paymentController.js)
+**Key Technical Details:**
+- **Proxy Config**: [nginx.conf](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/api-gateway/nginx/nginx.conf)
+- **Auth Events**: [rabbitmq.service.ts](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/auth-service/src/rabbitmq/rabbitmq.service.ts)
+- **Order Tracking**: [order.service.js](file:///home/mistire/Projects/class-projects/food-delivery-aggregator/order-service/src/core/services/order.service.js)
 
 ---
 
